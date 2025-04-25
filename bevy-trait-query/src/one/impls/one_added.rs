@@ -11,7 +11,7 @@ use bevy_ecs::{
 };
 
 use crate::{
-    debug_unreachable, ChangeDetectionFetch, ChangeDetectionStorage, TraitQuery, TraitQueryState,
+    ChangeDetectionFetch, ChangeDetectionStorage, TraitQuery, TraitQueryState, debug_unreachable,
 };
 
 /// [`WorldQuery`] filter for entities with exactly [one](crate::One) component
@@ -37,20 +37,22 @@ unsafe impl<Trait: ?Sized + TraitQuery> QueryData for OneAdded<Trait> {
         entity: Entity,
         table_row: TableRow,
     ) -> Self::Item<'w> {
-        let ticks_ptr = match fetch.storage {
-            ChangeDetectionStorage::Uninit => {
-                // set_archetype must have been called already
-                debug_unreachable()
-            }
-            ChangeDetectionStorage::Table { ticks } => ticks.get(table_row.as_usize()),
-            ChangeDetectionStorage::SparseSet { components } => components
-                .get_added_tick(entity)
-                .unwrap_or_else(|| debug_unreachable()),
-        };
+        unsafe {
+            let ticks_ptr = match fetch.storage {
+                ChangeDetectionStorage::Uninit => {
+                    // set_archetype must have been called already
+                    debug_unreachable()
+                }
+                ChangeDetectionStorage::Table { ticks } => ticks.get(table_row.as_usize()),
+                ChangeDetectionStorage::SparseSet { components } => components
+                    .get_added_tick(entity)
+                    .unwrap_or_else(|| debug_unreachable()),
+            };
 
-        (*ticks_ptr)
-            .deref()
-            .is_newer_than(fetch.last_run, fetch.this_run)
+            (*ticks_ptr)
+                .deref()
+                .is_newer_than(fetch.last_run, fetch.this_run)
+        }
     }
 }
 
@@ -64,11 +66,13 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for OneAdded<Trait> {
         last_run: Tick,
         this_run: Tick,
     ) -> Self::Fetch<'w> {
-        Self::Fetch::<'w> {
-            storage: ChangeDetectionStorage::Uninit,
-            sparse_sets: &world.storages().sparse_sets,
-            last_run,
-            this_run,
+        unsafe {
+            Self::Fetch::<'w> {
+                storage: ChangeDetectionStorage::Uninit,
+                sparse_sets: &world.storages().sparse_sets,
+                last_run,
+                this_run,
+            }
         }
     }
 
@@ -83,30 +87,34 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for OneAdded<Trait> {
         _archetype: &'w Archetype,
         table: &'w Table,
     ) {
-        // Search for a registered trait impl that is present in the archetype.
-        // We check the table components first since it is faster to retrieve data of this type.
-        for &component in &*state.components {
-            if let Some(added) = table.get_added_ticks_slice_for(component) {
-                fetch.storage = ChangeDetectionStorage::Table {
-                    ticks: added.into(),
-                };
-                return;
+        unsafe {
+            // Search for a registered trait impl that is present in the archetype.
+            // We check the table components first since it is faster to retrieve data of this type.
+            for &component in &*state.components {
+                if let Some(added) = table.get_added_ticks_slice_for(component) {
+                    fetch.storage = ChangeDetectionStorage::Table {
+                        ticks: added.into(),
+                    };
+                    return;
+                }
             }
-        }
-        for &component in &*state.components {
-            if let Some(components) = fetch.sparse_sets.get(component) {
-                fetch.storage = ChangeDetectionStorage::SparseSet { components };
-                return;
+            for &component in &*state.components {
+                if let Some(components) = fetch.sparse_sets.get(component) {
+                    fetch.storage = ChangeDetectionStorage::SparseSet { components };
+                    return;
+                }
             }
+            // At least one of the components must be present in the table/sparse set.
+            debug_unreachable()
         }
-        // At least one of the components must be present in the table/sparse set.
-        debug_unreachable()
     }
 
     #[inline]
     unsafe fn set_table<'w>(_fetch: &mut Self::Fetch<'w>, _state: &Self::State, _table: &'w Table) {
-        // only gets called if IS_DENSE == true, which does not hold for us
-        debug_unreachable()
+        unsafe {
+            // only gets called if IS_DENSE == true, which does not hold for us
+            debug_unreachable()
+        }
     }
 
     #[inline]
@@ -141,7 +149,9 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for OneAdded<Trait> {
     #[inline]
     fn get_state(_: &Components) -> Option<Self::State> {
         // TODO: fix this https://github.com/bevyengine/bevy/issues/13798
-        panic!("transmuting and any other operations concerning the state of a query are currently broken and shouldn't be used. See https://github.com/JoJoJet/bevy-trait-query/issues/59");
+        panic!(
+            "transmuting and any other operations concerning the state of a query are currently broken and shouldn't be used. See https://github.com/JoJoJet/bevy-trait-query/issues/59"
+        );
     }
 
     fn matches_component_set(
@@ -166,6 +176,6 @@ unsafe impl<Trait: ?Sized + TraitQuery> QueryFilter for OneAdded<Trait> {
         entity: Entity,
         table_row: TableRow,
     ) -> bool {
-        <Self as QueryData>::fetch(fetch, entity, table_row)
+        unsafe { <Self as QueryData>::fetch(fetch, entity, table_row) }
     }
 }

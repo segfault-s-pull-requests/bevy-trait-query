@@ -6,7 +6,7 @@ use bevy_ecs::{
     storage::{SparseSets, Table, TableRow},
 };
 
-use crate::{zip_exact, TraitImplMeta, TraitImplRegistry, TraitQuery};
+use crate::{TraitImplMeta, TraitImplRegistry, TraitQuery, zip_exact};
 
 /// Read-access to all components implementing a trait for a given entity.
 ///
@@ -187,13 +187,13 @@ impl<'w, Trait: ?Sized + TraitQuery> ReadTraits<'w, Trait> {
 
     /// Returns an iterator over the components implementing `Trait` for the current entity
     /// that were added since the last time the system was run.
-    pub fn iter_added(&self) -> impl Iterator<Item = Ref<'w, Trait>> {
+    pub fn iter_added(&self) -> impl Iterator<Item = Ref<'w, Trait>> + use<'w, Trait> {
         self.iter().filter(DetectChanges::is_added)
     }
 
     /// Returns an iterator over the components implementing `Trait` for the current entity
     /// whose values were changed since the last time the system was run.
-    pub fn iter_changed(&self) -> impl Iterator<Item = Ref<'w, Trait>> {
+    pub fn iter_changed(&self) -> impl Iterator<Item = Ref<'w, Trait>> + use<'w, Trait> {
         self.iter().filter(DetectChanges::is_changed)
     }
 }

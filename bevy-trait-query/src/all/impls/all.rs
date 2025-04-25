@@ -3,12 +3,12 @@ use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryItem, ReadOnlyQueryData, WorldQuery},
     storage::TableRow,
-    world::{unsafe_world_cell::UnsafeWorldCell, World},
+    world::{World, unsafe_world_cell::UnsafeWorldCell},
 };
 
 use crate::{
-    debug_unreachable, trait_registry_error, AllTraitsFetch, ReadTraits, TraitQuery,
-    TraitQueryState, WriteTraits,
+    AllTraitsFetch, ReadTraits, TraitQuery, TraitQueryState, WriteTraits, debug_unreachable,
+    trait_registry_error,
 };
 
 /// [`WorldQuery`] adapter that fetches all implementations of a given trait for an entity.
@@ -44,7 +44,9 @@ unsafe impl<Trait: ?Sized + TraitQuery> QueryData for All<&Trait> {
         _entity: Entity,
         table_row: TableRow,
     ) -> Self::Item<'w> {
-        let table = fetch.table.unwrap_or_else(|| debug_unreachable());
+        let table = fetch
+            .table
+            .unwrap_or_else(|| unsafe { debug_unreachable() });
 
         ReadTraits {
             registry: fetch.registry,
@@ -72,14 +74,16 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for All<&Trait> {
         last_run: Tick,
         this_run: Tick,
     ) -> Self::Fetch<'w> {
-        AllTraitsFetch {
-            registry: world
-                .get_resource()
-                .unwrap_or_else(|| trait_registry_error()),
-            table: None,
-            sparse_sets: &world.storages().sparse_sets,
-            last_run,
-            this_run,
+        unsafe {
+            AllTraitsFetch {
+                registry: world
+                    .get_resource()
+                    .unwrap_or_else(|| trait_registry_error()),
+                table: None,
+                sparse_sets: &world.storages().sparse_sets,
+                last_run,
+                this_run,
+            }
         }
     }
 
@@ -138,7 +142,9 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for All<&Trait> {
     #[inline]
     fn get_state(_: &Components) -> Option<Self::State> {
         // TODO: fix this https://github.com/bevyengine/bevy/issues/13798
-        panic!("transmuting and any other operations concerning the state of a query are currently broken and shouldn't be used. See https://github.com/JoJoJet/bevy-trait-query/issues/59");
+        panic!(
+            "transmuting and any other operations concerning the state of a query are currently broken and shouldn't be used. See https://github.com/JoJoJet/bevy-trait-query/issues/59"
+        );
     }
 
     #[inline]
@@ -173,7 +179,9 @@ unsafe impl<'a, Trait: ?Sized + TraitQuery> QueryData for All<&'a mut Trait> {
         _entity: Entity,
         table_row: TableRow,
     ) -> Self::Item<'w> {
-        let table = fetch.table.unwrap_or_else(|| debug_unreachable());
+        let table = fetch
+            .table
+            .unwrap_or_else(|| unsafe { debug_unreachable() });
 
         WriteTraits {
             registry: fetch.registry,
@@ -200,14 +208,16 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for All<&mut Trait> {
         last_run: Tick,
         this_run: Tick,
     ) -> Self::Fetch<'w> {
-        AllTraitsFetch {
-            registry: world
-                .get_resource()
-                .unwrap_or_else(|| trait_registry_error()),
-            table: None,
-            sparse_sets: &world.storages().sparse_sets,
-            last_run,
-            this_run,
+        unsafe {
+            AllTraitsFetch {
+                registry: world
+                    .get_resource()
+                    .unwrap_or_else(|| trait_registry_error()),
+                table: None,
+                sparse_sets: &world.storages().sparse_sets,
+                last_run,
+                this_run,
+            }
         }
     }
 
@@ -267,7 +277,9 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for All<&mut Trait> {
     #[inline]
     fn get_state(_: &Components) -> Option<Self::State> {
         // TODO: fix this https://github.com/bevyengine/bevy/issues/13798
-        panic!("transmuting and any other operations concerning the state of a query are currently broken and shouldn't be used. See https://github.com/JoJoJet/bevy-trait-query/issues/59");
+        panic!(
+            "transmuting and any other operations concerning the state of a query are currently broken and shouldn't be used. See https://github.com/JoJoJet/bevy-trait-query/issues/59"
+        );
     }
 
     #[inline]
