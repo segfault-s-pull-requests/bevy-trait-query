@@ -1,3 +1,6 @@
+use std::default;
+use std::panic::Location;
+
 use bevy_ecs::change_detection::{Mut, Ref};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::World;
@@ -75,17 +78,19 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&Trait> {
         // component exists in the table
         let row = TableRow::from_usize(0);
         for (&component, &meta) in zip_exact(&*state.components, &*state.meta) {
-            if let Some((ptr, added, changed)) =
+            if let Some((ptr, added, changed, changed_by)) =
                 table.get_component(component, row).and_then(|ptr| {
                     let added = table.get_added_ticks_slice_for(component)?;
                     let changed = table.get_changed_ticks_slice_for(component)?;
-                    Some((ptr, added, changed))
+                    let changed_by = table.get_changed_by_slice_for(component)?;
+                    Some((ptr, added, changed, changed_by))
                 })
             {
                 fetch.storage = FetchStorage::Table {
                     column: ptr,
                     added_ticks: added.into(),
                     changed_ticks: changed.into(),
+                    changed_by: changed_by.into(),
                     meta,
                 };
                 return;
@@ -116,17 +121,19 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&Trait> {
         // component exists in the table
         let row = TableRow::from_usize(0);
         for (&component, &meta) in std::iter::zip(&*state.components, &*state.meta) {
-            if let Some((ptr, added, changed)) =
+            if let Some((ptr, added, changed, changed_by)) =
                 table.get_component(component, row).and_then(|ptr| {
                     let added = table.get_added_ticks_slice_for(component)?;
                     let changed = table.get_changed_ticks_slice_for(component)?;
-                    Some((ptr, added, changed))
+                    let changed_by = table.get_changed_by_slice_for(component)?;
+                    Some((ptr, added, changed, changed_by))
                 })
             {
                 fetch.storage = FetchStorage::Table {
                     column: ptr,
                     added_ticks: added.into(),
                     changed_ticks: changed.into(),
+                    changed_by: changed_by.into(),
                     meta,
                 }
             }
@@ -143,7 +150,7 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&Trait> {
     ) -> Self::Item<'w> {
         let table_row = table_row.as_usize();
         let dyn_ctor;
-        let (ptr, added, changed) = match fetch.storage {
+        let (ptr, added, changed, changed_by) = match fetch.storage {
             // SAFETY: This function must have been called after `set_archetype`,
             // so we know that `self.storage` has been initialized.
             FetchStorage::Uninit => debug_unreachable(),
@@ -151,6 +158,7 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&Trait> {
                 column,
                 added_ticks,
                 changed_ticks,
+                changed_by,
                 meta,
             } => {
                 dyn_ctor = meta.dyn_ctor;
@@ -161,11 +169,12 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&Trait> {
                     // we have access to the corresponding `ComponentTicks`.
                     added_ticks.get(table_row).deref(),
                     changed_ticks.get(table_row).deref(),
+                    changed_by.get(table_row).deref()
                 )
             }
             FetchStorage::SparseSet { components, meta } => {
                 dyn_ctor = meta.dyn_ctor;
-                let (ptr, ticks, _) = components
+                let (ptr, ticks, changed_by) = components
                     .get_with_ticks(entity)
                     .unwrap_or_else(|| debug_unreachable());
                 (
@@ -174,6 +183,7 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&Trait> {
                     // we have access to the corresponding `ComponentTicks`.
                     ticks.added.deref(),
                     ticks.changed.deref(),
+                    changed_by.deref()
                 )
             }
         };
@@ -184,6 +194,8 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&Trait> {
             changed,
             fetch.last_run,
             fetch.this_run,
+            #[cfg(feature = "track_change_detection")]
+            changed_by 
         )
     }
 
@@ -281,17 +293,19 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&mut Trait> {
         // component exists in the table
         let row = TableRow::from_usize(0);
         for (&component, &meta) in zip_exact(&*state.components, &*state.meta) {
-            if let Some((ptr, added, changed)) =
+            if let Some((ptr, added, changed, changed_by)) =
                 table.get_component(component, row).and_then(|ptr| {
                     let added = table.get_added_ticks_slice_for(component)?;
                     let changed = table.get_changed_ticks_slice_for(component)?;
-                    Some((ptr, added, changed))
+                    let changed_by = table.get_changed_by_slice_for(component)?;
+                    Some((ptr, added, changed, changed_by))
                 })
             {
                 fetch.storage = FetchStorage::Table {
                     column: ptr,
                     added_ticks: added.into(),
                     changed_ticks: changed.into(),
+                    changed_by: changed_by.into(),
                     meta,
                 };
                 return;
@@ -322,17 +336,19 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&mut Trait> {
         // component exists in the table
         let row = TableRow::from_usize(0);
         for (&component, &meta) in std::iter::zip(&*state.components, &*state.meta) {
-            if let Some((ptr, added, changed)) =
+            if let Some((ptr, added, changed, changed_by)) =
                 table.get_component(component, row).and_then(|ptr| {
                     let added = table.get_added_ticks_slice_for(component)?;
                     let changed = table.get_changed_ticks_slice_for(component)?;
-                    Some((ptr, added, changed))
+                    let changed_by = table.get_changed_by_slice_for(component)?;
+                    Some((ptr, added, changed, changed_by))
                 })
             {
                 fetch.storage = FetchStorage::Table {
                     column: ptr,
                     added_ticks: added.into(),
                     changed_ticks: changed.into(),
+                    changed_by: changed_by.into(),
                     meta,
                 };
                 return;
@@ -350,7 +366,7 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&mut Trait> {
     ) -> Mut<'w, Trait> {
         let table_row = table_row.as_usize();
         let dyn_ctor;
-        let (ptr, added, changed) = match fetch.storage {
+        let (ptr, added, changed, changed_by) = match fetch.storage {
             // SAFETY: This function must have been called after `set_archetype`,
             // so we know that `self.storage` has been initialized.
             FetchStorage::Uninit => debug_unreachable(),
@@ -358,6 +374,7 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&mut Trait> {
                 column,
                 added_ticks,
                 changed_ticks,
+                changed_by,
                 meta,
             } => {
                 dyn_ctor = meta.dyn_ctor;
@@ -371,11 +388,12 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&mut Trait> {
                     // we have exclusive access to the corresponding `ComponentTicks`.
                     added_ticks.get(table_row).deref_mut(),
                     changed_ticks.get(table_row).deref_mut(),
+                    changed_by.get(table_row).deref_mut()  
                 )
             }
             FetchStorage::SparseSet { components, meta } => {
                 dyn_ctor = meta.dyn_ctor;
-                let (ptr, ticks, _) = components
+                let (ptr, ticks, changed_by) = components
                     .get_with_ticks(entity)
                     .unwrap_or_else(|| debug_unreachable());
                 (
@@ -387,6 +405,7 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&mut Trait> {
                     // we have exclusive access to the corresponding `ComponentTicks`.
                     ticks.added.deref_mut(),
                     ticks.changed.deref_mut(),
+                    changed_by.deref_mut()
                 )
             }
         };
@@ -397,6 +416,9 @@ unsafe impl<Trait: ?Sized + TraitQuery> WorldQuery for One<&mut Trait> {
             changed,
             fetch.last_run,
             fetch.this_run,
+
+            #[cfg(feature = "track_change_detection")]
+            changed_by
         )
     }
 

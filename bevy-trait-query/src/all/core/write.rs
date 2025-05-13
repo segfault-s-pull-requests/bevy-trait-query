@@ -83,12 +83,19 @@ impl<'a, Trait: ?Sized + TraitQuery> Iterator for WriteTableTraitsIter<'a, Trait
                 .get_changed_tick(component, self.table_row)?
                 .deref_mut()
         };
+        let changed_by = unsafe {
+            self.table
+                .get_changed_by(component, self.table_row)?
+                .deref_mut()
+        };
         Some(Mut::new(
             trait_object,
             added,
             changed,
             self.last_run,
             self.this_run,
+            #[cfg(feature = "track_change_detection")]
+            changed_by,
         ))
     }
 }
@@ -111,12 +118,12 @@ impl<'a, Trait: ?Sized + TraitQuery> Iterator for WriteSparseTraitsIter<'a, Trai
     fn next(&mut self) -> Option<Self::Item> {
         // Iterate the remaining sparse set components we have registered,
         // until we find one that exists in the archetype.
-        let (ptr, component_ticks, meta) =
+        let (ptr, component_ticks, meta, changed_by) =
             unsafe { zip_exact(&mut self.components, &mut self.meta) }.find_map(
                 |(&component, meta)| {
                     let set = self.sparse_sets.get(component)?;
-                    let (ptr, ticks, _) = set.get_with_ticks(self.entity)?;
-                    Some((ptr, ticks, meta))
+                    let (ptr, ticks, changed_by) = set.get_with_ticks(self.entity)?;
+                    Some((ptr, ticks, meta, changed_by))
                 },
             )?;
 
@@ -131,6 +138,7 @@ impl<'a, Trait: ?Sized + TraitQuery> Iterator for WriteSparseTraitsIter<'a, Trai
         // we have exclusive access to the corresponding `ComponentTicks`.
         let added = unsafe { component_ticks.added.deref_mut() };
         let changed = unsafe { component_ticks.changed.deref_mut() };
+        let changed_by = unsafe { changed_by.deref_mut() };
 
         Some(Mut::new(
             trait_object,
@@ -138,6 +146,8 @@ impl<'a, Trait: ?Sized + TraitQuery> Iterator for WriteSparseTraitsIter<'a, Trai
             changed,
             self.last_run,
             self.this_run,
+            #[cfg(feature = "track_change_detection")]
+            changed_by,
         ))
     }
 }

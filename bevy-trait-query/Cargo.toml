@@ -10,6 +10,7 @@ keywords = ["bevy", "gamedev", "plugin", "query", "trait"]
 categories = ["game-development"]
 
 [features]
+track_change_detection = []
 default = ["bevy_app", "bevy_core"]
 
 [dependencies]

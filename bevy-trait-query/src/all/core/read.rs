@@ -72,6 +72,11 @@ impl<'a, Trait: ?Sized + TraitQuery> Iterator for ReadTableTraitsIter<'a, Trait>
                 .get_changed_tick(component, self.table_row)?
                 .deref()
         };
+        let changed_by = unsafe {
+            self.table
+                .get_changed_by(component, self.table_row)?
+                .deref()
+        };
 
         Some(Ref::new(
             trait_object,
@@ -79,6 +84,9 @@ impl<'a, Trait: ?Sized + TraitQuery> Iterator for ReadTableTraitsIter<'a, Trait>
             changed_tick,
             self.last_run,
             self.this_run,
+
+            #[cfg(feature = "track_change_detection")]
+            changed_by
         ))
     }
 }
@@ -100,21 +108,25 @@ impl<'a, Trait: ?Sized + TraitQuery> Iterator for ReadSparseTraitsIter<'a, Trait
     fn next(&mut self) -> Option<Self::Item> {
         // Iterate the remaining sparse set components that are registered,
         // until we find one that exists in the archetype.
-        let (ptr, ticks_ptr, meta) = unsafe { zip_exact(&mut self.components, &mut self.meta) }
+        let (ptr, ticks_ptr, meta, changed_by) = unsafe { zip_exact(&mut self.components, &mut self.meta) }
             .find_map(|(&component, meta)| {
                 let set = self.sparse_sets.get(component)?;
-                let (ptr, ticks, _) = set.get_with_ticks(self.entity)?;
-                Some((ptr, ticks, meta))
+                let (ptr, ticks, changed_by) = set.get_with_ticks(self.entity)?;
+                Some((ptr, ticks, meta, changed_by))
             })?;
         let trait_object = unsafe { meta.dyn_ctor.cast(ptr) };
         let added_tick = unsafe { ticks_ptr.added.deref() };
         let changed_tick = unsafe { ticks_ptr.changed.deref() };
+        let changed_by = unsafe { changed_by.deref() };
         Some(Ref::new(
             trait_object,
             added_tick,
             changed_tick,
             self.last_run,
             self.this_run,
+            
+            #[cfg(feature = "track_change_detection")]
+            changed_by
         ))
     }
 }

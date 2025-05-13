@@ -1,4 +1,4 @@
-use std::cell::UnsafeCell;
+use std::{cell::UnsafeCell, panic::Location};
 
 use bevy_ecs::{
     component::Tick,
@@ -38,6 +38,7 @@ pub(crate) enum FetchStorage<'w, Trait: ?Sized> {
         column: Ptr<'w>,
         added_ticks: ThinSlicePtr<'w, UnsafeCell<Tick>>,
         changed_ticks: ThinSlicePtr<'w, UnsafeCell<Tick>>,
+        changed_by: ThinSlicePtr<'w, UnsafeCell<&'static Location<'static>>>,
         meta: TraitImplMeta<Trait>,
     },
     SparseSet {
